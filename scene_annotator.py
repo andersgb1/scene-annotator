@@ -10,7 +10,7 @@ from covis import *
 # Setup program options
 po = argparse.ArgumentParser()
 
-po.add_argument("root", default="/path/to/sixd", type=str, help="root path of your dataset")
+po.add_argument("root", default="/path/to/sixd/dataset", type=str, help="root path of your dataset")
 
 po.add_argument("--object", '-o', default="models/obj_01.ply", type=str, help="relative path to object file")
 po.add_argument("--scene-dir", '-s', default="test/01", type=str, help="relative path to directory with scenes")
@@ -46,9 +46,10 @@ assert os.path.isfile(infofile)
 with open(infofile, 'r') as f:
     camdata = yaml.load(f)
 
-if not os.path.isdir(args.output_dir):
-    print('Creating output directory {}...'.format(args.output_dir))
-    os.makedirs(args.output_dir)
+outdir = args.output_dir + '/' + args.root[args.root.rfind('/')+1:] + '/' + args.scene_dir[-2:] + '/mask/obj_' + objid_string
+if not os.path.isdir(outdir):
+    print('Creating output directory {}...'.format(outdir))
+    os.makedirs(outdir)
 
 assert len(rgblist) == len(gtdata) == len(camdata)
 
@@ -95,6 +96,6 @@ for i in range(len(rgblist)):
     img_masked = morphology.closing(img_masked)
 
     # Save result
-    outfile = args.output_dir + '/' + objid_string + '_' + seqid_string + '_' + rgblist[i]
+    outfile = outdir + '/' + rgblist[i]
     print('\tSaving output file {} with {} annotated instances...'.format(outfile, len(Tlist)))
     misc.imsave(outfile, img_masked)
