@@ -76,7 +76,7 @@ for i in range(len(rgblist)):
     Tlist = tmp
 
     # Generate masks for each object instance, put them into this binary image (0 for bg, 255 for fg)
-    img_masked = numpy.zeros_like(img)
+    img_masked = numpy.zeros((img.shape[0],img.shape[1]), dtype=numpy.uint8)
     for T in Tlist:
         R = numpy.asarray(T['cam_R_m2c']).reshape((3,3))
         t = numpy.asarray(T['cam_t_m2c']).reshape((3,1))
