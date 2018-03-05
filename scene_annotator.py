@@ -14,6 +14,7 @@ po.add_argument("root", default="/path/to/sixd/dataset", type=str, help="root pa
 
 po.add_argument("--object", '-o', default="models/obj_01.ply", type=str, help="relative path to object file")
 po.add_argument("--scene-dir", '-s', default="test/01", type=str, help="relative path to directory with scenes")
+po.add_argument("--threshold", '-t', default=10, type=float, help="occlusion threshold, set to zero or less to disable occlusion reasoning")
 po.add_argument("--output-dir", default="./output", type=str, help="specify output directory")
 
 args = po.parse_args()
@@ -33,6 +34,11 @@ print('Loading scene file list from directory {}...'.format(scenedirrgb))
 assert os.path.isdir(scenedirrgb)
 rgblist = sorted(os.listdir(scenedirrgb))
 print('\tGot {} files from {} to {}'.format(len(rgblist), rgblist[0], rgblist[-1]))
+
+scenedird = scenedir + '/depth'
+assert os.path.isdir(scenedird)
+dlist = sorted(os.listdir(scenedird))
+assert len(rgblist) == len(dlist)
 
 gtfile = scenedir + '/gt.yml'
 print('Loading GT poses from {}...'.format(gtfile))
@@ -56,11 +62,18 @@ assert len(rgblist) == len(gtdata) == len(camdata)
 seqid_string = args.scene_dir[-2:]
 print('Traversing scenes in sequence {}...'.format(seqid_string))
 for i in range(len(rgblist)):
-    # Load scene image
+    # Load scene images
     from scipy import misc
     rgbfile = scenedirrgb + '/' + rgblist[i]
     assert os.path.isfile(rgbfile)
+    dfile = scenedird + '/' + dlist[i]
+    assert os.path.isfile(dfile)
     img = misc.imread(rgbfile)
+    depth = misc.imread(dfile, mode='I')
+#    from skimage.viewer import ImageViewer
+#    viewer = ImageViewer(depth.astype(float))
+#    viewer.show()
+#    depth = depth.astype(float)
 
     # Load intrinsic matrix
     assert camdata[i]['depth_scale'] == 1
@@ -78,17 +91,37 @@ for i in range(len(rgblist)):
     # Generate masks for each object instance, put them into this binary image (0 for bg, 255 for fg)
     img_masked = numpy.zeros((img.shape[0],img.shape[1]), dtype=numpy.uint8)
     for T in Tlist:
+        # Format pose
         R = numpy.asarray(T['cam_R_m2c']).reshape((3,3))
         t = numpy.asarray(T['cam_t_m2c']).reshape((3,1))
         Ti = numpy.vstack((numpy.hstack((R,t)), numpy.array([0,0,0,1])))
+        # Transform the object coordinates into the scene
         xyz = model.cloud.array()[0:3,:]
         xyz = numpy.matmul(R, xyz) + numpy.tile(t, xyz.shape[1])
+        # Project to pixel coordinates
         xy = xyz[0:2,:] / xyz[2,:] # Normalize by z
-        xy[0,:] = fx * xy[0,:] + cx
+        xy[0, :] = fx * xy[0, :] + cx
         xy[1, :] = fy * xy[1, :] + cy
         xy = numpy.round(xy).astype(int)
-        xy[0, :] = numpy.clip(xy[0, :], 0, img.shape[1] - 1)
-        xy[1, :] = numpy.clip(xy[1, :], 0, img.shape[0] - 1)
+        z = xyz[2,:] # Maintain depth for use below
+        
+        # Remove pixels beyond image borders
+        mask = numpy.logical_and(numpy.logical_and(xy[0, :] >= 0, xy[0, :] <= img.shape[1] - 1),
+                                 numpy.logical_and(xy[1, :] >= 0, xy[1, :] <= img.shape[0] - 1))
+        xy = xy[:,mask]
+        z = z[mask]
+        
+        # Remove pixels behind scene data
+        if args.threshold > 0:
+            mask = numpy.zeros_like(z, dtype=bool)
+            for j in range(z.shape[0]):
+                if depth[xy[1,j], xy[0,j]] > 0:
+                    if abs(depth[xy[1,j], xy[0,j]] - z[j]) < args.threshold:           
+#                    if depth[xy[1,j], xy[0,j]] < z[j] - args.threshold:
+                        mask[j] = True
+            xy = xy[:, mask]
+            z = z[mask]
+        
         img_masked[xy[1,:], xy[0,:]] = 255 # Row index (y) comes first
 
     # Remove pepper noise
@@ -99,3 +132,4 @@ for i in range(len(rgblist)):
     outfile = outdir + '/' + rgblist[i]
     print('\tSaving output file {} with {} annotated instances...'.format(outfile, len(Tlist)))
     misc.imsave(outfile, img_masked)
+    if i == 3: raise 1
