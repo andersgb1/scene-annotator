@@ -132,4 +132,4 @@ for i in range(len(rgblist)):
     outfile = outdir + '/' + rgblist[i]
     print('\tSaving output file {} with {} annotated instances...'.format(outfile, len(Tlist)))
     misc.imsave(outfile, img_masked)
-    if i == 3: raise 1
+
