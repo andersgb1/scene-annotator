@@ -12,6 +12,6 @@ And finally you need to make sure that CoViS is built "one folder up" relative t
 ## Testing
 The script is tailored to load test sequences from the SIXD Challenge datasets. If you download one of the datasets from the [webpage](http://cmp.felk.cvut.cz/sixd/challenge_2017) (you only need the **models.zip** and **test.zip** files from each dataset), you need to tell the script where to find the root of the dataset, what object to annotate, what scene sequence to process, and finally where to output the training data:
 ```sh
-python scene_annotator.py /path/to/sixd_dataset/ --object=models/obj_01.ply --scene_dir=test/01 --output-dir=./output
+python scene_annotator.py /path/to/sixd_dataset/ --object=models/obj_01.ply --scene-dir=test/01 --output-dir=./output
 ```
 
