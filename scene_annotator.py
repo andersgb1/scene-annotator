@@ -14,8 +14,9 @@ po.add_argument("root", default="/path/to/sixd/dataset", type=str, help="root pa
 
 po.add_argument("--object", '-o', default="models/obj_01.ply", type=str, help="relative path to object file")
 po.add_argument("--scene-dir", '-s', default="test/01", type=str, help="relative path to directory with scenes")
+po.add_argument("--test-set", '-e', default="", type=str, help="relative path to test set list (set to e.g. test_set_v1.yml to enable)")
 po.add_argument("--threshold", '-t', default=10, type=float, help="occlusion threshold, set to zero or less to disable occlusion reasoning")
-po.add_argument("--output-dir", default="./output", type=str, help="specify output directory")
+po.add_argument("--output-dir", default="./output", type=str, help="specify output directory root")
 
 args = po.parse_args()
 
@@ -52,16 +53,32 @@ assert os.path.isfile(infofile)
 with open(infofile, 'r') as f:
     camdata = yaml.load(f)
 
-outdir = args.output_dir + '/' + args.root[args.root.rfind('/')+1:] + '/' + args.scene_dir[-2:] + '/mask/obj_' + objid_string
+if args.test_set:
+    testfile = args.root + '/' + args.test_set
+    print('Loading test set list from {}...'.format(testfile))
+    with open(testfile, 'r') as stream:
+        try:
+            test_set_data = yaml.load(stream)
+        except yaml.YAMLError as exc:
+            print(exc)
+        scnid_string = args.scene_dir[-2:]
+        scnid = int(scnid_string)
+        test_set = test_set_data[scnid]
+        print('\tGot {} scenes in test set'.format(len(test_set)))
+        gtdata = [gtdata[i] for i in test_set]
+        camdata = [camdata[i] for i in test_set]
+
+print('GT/cam/rgb list length: {}/{}/{}'.format(len(gtdata), len(camdata), len(rgblist)))
+assert len(gtdata) == len(camdata) == len(rgblist)
+
+outdir = args.output_dir + '/' + args.root[args.root.rfind('/')+1:] + '/' + args.scene_dir[-2:] + '/mask_gt/' + objid_string
 if not os.path.isdir(outdir):
     print('Creating output directory {}...'.format(outdir))
     os.makedirs(outdir)
 
-assert len(rgblist) == len(gtdata) == len(camdata)
-
 seqid_string = args.scene_dir[-2:]
 print('Traversing scenes in sequence {}...'.format(seqid_string))
-for i in range(len(rgblist)):
+for i in range(len(gtdata)):
     # Load scene images
     from scipy import misc
     rgbfile = scenedirrgb + '/' + rgblist[i]
@@ -130,6 +147,6 @@ for i in range(len(rgblist)):
 
     # Save result
     outfile = outdir + '/' + rgblist[i]
-    print('\tSaving output file {} with {} annotated instances...'.format(outfile, len(Tlist)))
+    print('\tSaving output file {} with {} annotated instance(s)...'.format(outfile, len(Tlist)))
     misc.imsave(outfile, img_masked)
 
